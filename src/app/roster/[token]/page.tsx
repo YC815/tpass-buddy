@@ -6,8 +6,11 @@
 import { notFound } from "next/navigation";
 import { Users } from "lucide-react";
 import { authConfig } from "@/config/auth";
+import { getSession } from "@/lib/tpass-auth";
 import { loadPairs, rosterBySenior } from "@/lib/pairs";
 import { RosterSearch } from "@/components/RosterSearch";
+import { Header } from "@/components/common/Header";
+import { Footer } from "@/components/common/Footer";
 import { Card } from "@/components/ui/primitives";
 
 export const dynamic = "force-dynamic";
@@ -20,36 +23,51 @@ export default async function RosterPage({
   const { token } = await params;
   if (token !== authConfig.rosterToken) notFound();
 
-  const [groups, { version, syncedAt }] = await Promise.all([
+  const [groups, { version, syncedAt }, session] = await Promise.all([
     rosterBySenior(),
     loadPairs(),
+    // 純粹讓導覽列顯示「登入 / 登出」正確而已——這頁的存取權是路徑，不是 session，
+    // 所以這裡永遠不能拿 session 當判斷條件。
+    getSession(),
   ]);
   const total = groups.reduce((sum, g) => sum + g.juniors.length, 0);
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col gap-6 px-5 py-10">
-      <header className="flex flex-col gap-2">
-        <span className="inline-flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-widest text-muted-foreground">
-          <Users className="size-4" aria-hidden />
-          T-Buddy 總表
-        </span>
-        <h1 className="text-3xl font-extrabold tracking-tight">直屬配對名單</h1>
-        <p className="font-mono text-xs text-muted-foreground">
-          {version}｜{groups.length} 位學長姐｜{total} 位新生
-          {syncedAt && `｜更新於 ${new Date(syncedAt).toLocaleString("zh-TW")}`}
-        </p>
-      </header>
+    <>
+      <Header
+        isLoggedIn={session !== null}
+        userName={session?.name}
+        loginUrl={authConfig.loginUrl}
+        logoutUrl={authConfig.logoutUrl}
+        portalUrl={authConfig.portalUrl}
+      />
 
-      {groups.length === 0 ? (
-        <Card className="bg-muted">
-          <p className="font-bold">目前沒有資料</p>
-          <p className="text-sm text-muted-foreground">
-            主機上還沒有 data/pairs.json，先在本機跑 pnpm sync 再 pnpm push:data。
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-6 px-4 py-10 sm:px-6">
+        <header className="flex flex-col gap-2">
+          <span className="inline-flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-widest text-muted-foreground">
+            <Users className="size-4" aria-hidden />
+            T-Buddy 總表
+          </span>
+          <h1 className="text-3xl font-extrabold tracking-tight">直屬配對名單</h1>
+          <p className="font-mono text-xs text-muted-foreground">
+            {version}｜{groups.length} 位學長姐｜{total} 位新生
+            {syncedAt && `｜更新於 ${new Date(syncedAt).toLocaleString("zh-TW")}`}
           </p>
-        </Card>
-      ) : (
-        <RosterSearch groups={groups} />
-      )}
-    </main>
+        </header>
+
+        {groups.length === 0 ? (
+          <Card className="bg-muted">
+            <p className="font-bold">目前沒有資料</p>
+            <p className="text-sm text-muted-foreground">
+              主機上還沒有 data/pairs.json，先在本機跑 pnpm sync 再 pnpm push:data。
+            </p>
+          </Card>
+        ) : (
+          <RosterSearch groups={groups} />
+        )}
+      </main>
+
+      <Footer />
+    </>
   );
 }
