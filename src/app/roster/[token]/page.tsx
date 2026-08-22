@@ -7,7 +7,8 @@ import { notFound } from "next/navigation";
 import { Users } from "lucide-react";
 import { authConfig } from "@/config/auth";
 import { loadPairs, rosterBySenior } from "@/lib/pairs";
-import { Badge, Card } from "@/components/ui/primitives";
+import { RosterSearch } from "@/components/RosterSearch";
+import { Card } from "@/components/ui/primitives";
 
 export const dynamic = "force-dynamic";
 
@@ -47,33 +48,7 @@ export default async function RosterPage({
           </p>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {groups.map((group, i) => (
-            <Card key={i} className="flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-2 border-b-2 border-foreground pb-2">
-                <span className="text-xl font-extrabold tracking-tight">
-                  {group.senior.name}
-                </span>
-                <Badge className="bg-tone-blue-badge">
-                  {group.senior.grade}
-                </Badge>
-              </div>
-              <ul className="flex flex-col gap-1.5">
-                {group.juniors.map((junior, j) => (
-                  <li
-                    key={j}
-                    className="flex items-center gap-2 font-semibold"
-                  >
-                    <span aria-hidden className="text-muted-foreground">
-                      →
-                    </span>
-                    {junior.name}
-                  </li>
-                ))}
-              </ul>
-            </Card>
-          ))}
-        </div>
+        <RosterSearch groups={groups} />
       )}
     </main>
   );
