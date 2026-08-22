@@ -8,11 +8,14 @@ import { useEffect, useState } from "react";
 import { Check, Copy, Mail } from "lucide-react";
 import { Badge } from "@/components/ui/primitives";
 import type { BadgeMark } from "@/lib/pairs";
+import type { Profile } from "@/lib/profiles";
 
 export interface RevealedPerson {
   name: string;
   email: string;
   grade: string;
+  // 對方自己留的 IG／留言。大多數人沒有，就是 null。
+  profile: Profile | null;
 }
 
 // 底色由徽記 emoji 決定，同一枚徽記永遠同一個顏色。

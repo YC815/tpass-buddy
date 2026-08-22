@@ -8,7 +8,7 @@
 // 對方資料只會在 server 端確認這一對已相認之後才進到 cards——由 page.tsx 負責把關。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { QrCode, ScanLine } from "lucide-react";
+import { MessageSquareHeart, QrCode, ScanLine } from "lucide-react";
 import { BadgeCard, type RevealedPerson } from "@/components/BadgeCard";
 import { CodeInput } from "@/components/CodeInput";
 import { Scanner } from "@/components/Scanner";
@@ -19,6 +19,27 @@ import type { BadgeMark, Role } from "@/lib/pairs";
 export interface RevealCard {
   badge: BadgeMark;
   person: RevealedPerson | null; // null = 還沒相認
+}
+
+// lucide 1.x 沒有品牌圖示（Instagram 在裡面找不到），所以自己畫一個。
+// 幾何形狀 + currentColor stroke + 2px 線寬，跟這頁其他 lucide 圖示同一套。
+function InstagramGlyph({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="2" y="2" width="20" height="20" rx="5" />
+      <circle cx="12" cy="12" r="4" />
+      <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
 }
 
 const POLL_MS = 3000;
@@ -183,6 +204,39 @@ export function RevealSection({
           />
         ))}
       </div>
+
+      {/* 對方留給揭曉者的話與他的 IG。沒留就整塊不存在——名單上絕大多數人都是這樣。
+          整包放在牌組下面而不是卡片正面：留言是段落，塞進 22rem 的卡會爆版；
+          IG 也跟著留言走，因為它是「這個人想對你說的」的一部分，不是聯絡資訊欄位。 */}
+      {cards.map((card) => {
+        const profile = card.person?.profile;
+        if (!profile) return null;
+        return (
+          <Card
+            key={card.badge.emoji}
+            className="flex w-full max-w-sm flex-col items-start gap-3 self-center"
+          >
+            <span className="inline-flex items-center gap-1.5 font-mono text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              <MessageSquareHeart className="size-3.5" aria-hidden />
+              {card.person?.name} 想對你說
+            </span>
+            {profile.note && (
+              <p className="text-sm font-medium leading-relaxed">{profile.note}</p>
+            )}
+            {profile.instagram && (
+              <a
+                href={`https://instagram.com/${profile.instagram}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-foreground bg-tone-violet-bg px-3 py-1.5 font-mono text-sm font-bold text-foreground shadow-[3px_3px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[5px_5px_0_0_var(--color-foreground)] active:translate-y-0 active:shadow-[2px_2px_0_0_var(--color-foreground)]"
+              >
+                <InstagramGlyph className="size-4 shrink-0" />
+                @{profile.instagram}
+              </a>
+            )}
+          </Card>
+        );
+      })}
 
       {!allRevealed && (
         <Card className="flex w-full max-w-sm flex-col items-center gap-3 self-center bg-muted text-center">

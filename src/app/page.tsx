@@ -6,6 +6,7 @@ import { authConfig } from "@/config/auth";
 import { requireSession } from "@/lib/guard";
 import { getSession, permOf } from "@/lib/tpass-auth";
 import { lookupByEmail, otherOf } from "@/lib/pairs";
+import { profileOf } from "@/lib/profiles";
 import { revealFlagsFor } from "@/lib/reveal-policy";
 import { recordView } from "@/lib/views";
 import { RevealSection, type RevealCard } from "@/components/RevealSection";
@@ -93,14 +94,23 @@ export default async function HomePage({
     // 沒揭曉的配對只放徽記，person 給 null。RevealSection 是 client component，
     // 它收到的每個欄位都會出現在 HTML 的 RSC payload 裡——所以對方的姓名與信箱
     // 必須在「確認這一對已相認」之後才被放進來，不能靠前端不顯示。
-    const cards: RevealCard[] = lookup.pairs.map((pair, i) => {
-      if (!flags[i]) return { badge: pair.badge, person: null };
-      const person = otherOf(pair, lookup.role);
-      return {
-        badge: pair.badge,
-        person: { name: person.name, email: person.email, grade: person.grade },
-      };
-    });
+    // profile（IG／留言）跟姓名信箱一樣是對方的資料，所以走同一道門：
+    // 揭曉之後才讀、才放進來。
+    const cards: RevealCard[] = await Promise.all(
+      lookup.pairs.map(async (pair, i) => {
+        if (!flags[i]) return { badge: pair.badge, person: null };
+        const person = otherOf(pair, lookup.role);
+        return {
+          badge: pair.badge,
+          person: {
+            name: person.name,
+            email: person.email,
+            grade: person.grade,
+            profile: await profileOf(person.email),
+          },
+        };
+      }),
+    );
 
     // 我的碼屬於我這個人，不是屬於某一組配對——帶 2 位學弟妹的學長姐也只有一組。
     const myCode =

@@ -78,6 +78,28 @@ pnpm push:data                                   # 送上主機
 `pnpm push:data` 走 `../scripts/ssh.sh`（ops repo），先寫 `.tmp` 再 `mv`，中途斷線不會讓線上讀到半份 JSON。
 遠端路徑從 `tpass-registry/services.json` 推導，主機位址只存在 ops 層 gitignored 的 `deploy/host.env`。
 
+### 個人留言與 IG（`data/profiles.json`）
+
+想讓某個人在被揭曉時多顯示一句話 / 一個 IG，就手寫這份檔案（沒有這個檔＝沒有人留言）：
+
+```json
+{
+  "11400000@tschool.tp.edu.tw": {
+    "instagram": "someone",
+    "note": "很高興成為你的直屬！"
+  }
+}
+```
+
+兩個欄位都顯示在牌組下方的**同一張留言卡**上：`note` 是內文，`instagram` 是底下那顆
+連到 `instagram.com/<帳號>` 的按鈕。翻牌卡本身不動——那張卡是「你的直屬是誰」，
+IG 是「他想對你說的話」的一部分，不是聯絡資訊欄位（而且段落塞進 22rem 的卡會爆版）。
+只填一個欄位也成立。兩者都**只在這一對相認之後**才會離開伺服器
+——跟姓名信箱走同一道門（`src/app/page.tsx` 的個資邊界）。
+
+這份是人手維護的，`pnpm sync` 不會碰它（所以不會被 Excel 重生蓋掉）；
+`pnpm push:data` 有這個檔就一起送上主機，換檔案 → 重整頁面即生效。
+
 ### 為什麼資料不進 git
 
 47 位學生的姓名 + 學校信箱是完整個資，而**這個 repo 是 public**。
