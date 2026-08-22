@@ -1,0 +1,41 @@
+{
+  "name": "tpass-buddy",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.27.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp",
+      "unrs-resolver"
+    ]
+  },
+  "scripts": {
+    "dev": "NODE_TLS_REJECT_UNAUTHORIZED=0 next dev --experimental-https --experimental-https-key $HOME/tpass-certs/key.pem --experimental-https-cert $HOME/tpass-certs/cert.pem -H buddy.lvh.me -p 3008",
+    "build": "next build",
+    "start": "next start",
+    "start:https": "NODE_EXTRA_CA_CERTS=\"$(mkcert -CAROOT)/rootCA.pem\" NODE_ENV=production node server.mjs",
+    "lint": "eslint",
+    "sync": "node scripts/sync-pairs.mjs",
+    "push:data": "node scripts/push-data.mjs"
+  },
+  "dependencies": {
+    "@next/env": "16.2.10",
+    "jose": "^6.2.3",
+    "lucide-react": "^1.23.0",
+    "next": "16.2.10",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.10",
+    "exceljs": "^4.4.0",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
