@@ -3,8 +3,11 @@
 // 進得來的條件是 JWT 裡 permissions.buddy.role === "admin"（名單在 auth 的 /admin panel 管）。
 // 非 admin 一律 404，不透露這頁存在——同 /roster/<token> 的中性 404。
 //
-// 只讀，沒有任何寫入或匯出。名單以 pairs.json 為準：沒進來過的人才會顯示成 0 次，
+// 只讀，沒有任何寫入或匯出。名單以 pairs.json 為準：沒看到直屬的人才會顯示成 0 次，
 // 這正是這頁存在的理由（「誰還沒看」只能從名單那一側算出來）。
+//
+// 「看過」的定義＝頁面真的把直屬揭曉給他看（見 src/app/page.tsx 的計次點）。
+// 還沒相認、停在徽記畫面的那些 render 不計次，否則這欄會變成「登入過沒」。
 import { Eye, EyeOff, Users, MousePointerClick } from "lucide-react";
 import { authConfig } from "@/config/auth";
 import { requireAdmin } from "@/lib/guard";
@@ -93,8 +96,9 @@ export default async function AdminPage() {
         <div>
           <h1 className="text-2xl font-extrabold tracking-tight">瀏覽狀況</h1>
           <p className="mt-1 text-sm font-medium text-muted-foreground">
-            名單上每個人有沒有點進來看過自己的直屬、看了幾次。計次從這個功能上線那一刻起算，
-            之前的瀏覽沒有紀錄。
+            名單上每個人有沒有真的看到自己的直屬、看了幾次。只有頁面實際揭曉的那一次才計數——
+            停在徽記畫面等相認不算，所以「還沒看」包含「進來過但還沒相認」。計次從這個功能上線
+            那一刻起算，之前的瀏覽沒有紀錄。
           </p>
         </div>
 

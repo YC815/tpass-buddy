@@ -73,14 +73,34 @@ export function RevealSection({
 
   // 對方掃了我之後，我這邊自己翻開，不必叫使用者重整。
   // 全開就停；分頁切走也停（省電，也省得回來時一次噴一堆請求）。
+  //
+  // 輪詢問的是 /api/reveal/status（薄端點，只回揭曉旗標、不回姓名），
+  // **狀態真的翻了才** router.refresh()。原本每 3 秒無條件 refresh 一次，
+  // 等於每分鐘重跑 20 次整頁 server render——連帶把 admin 的瀏覽計次灌爆
+  // （實測一個人 3.5 分鐘記了 52 次）。等待中的人不該在統計裡留下任何痕跡。
   useEffect(() => {
     if (allRevealed) return;
 
-    const timer = setInterval(() => {
+    let stopped = false;
+    const timer = setInterval(async () => {
       if (document.visibilityState !== "visible") return;
-      router.refresh();
+      try {
+        const res = await fetch("/api/reveal/status", { cache: "no-store" });
+        if (!res.ok) return;
+        const body = (await res.json()) as { revealed?: unknown };
+        if (stopped || !Array.isArray(body.revealed)) return;
+        // 有任何一格從「沒開」變「開」→ 交給 server 重新組資料（姓名只從那裡來）。
+        if (body.revealed.some((open, i) => open && !seen.current[i])) {
+          router.refresh();
+        }
+      } catch {
+        // 網路瞬斷不必吵使用者，下一輪再問。
+      }
     }, POLL_MS);
-    return () => clearInterval(timer);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
   }, [allRevealed, router]);
 
   const submit = useCallback(

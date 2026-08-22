@@ -60,15 +60,6 @@ export default async function HomePage({
 
   const session = await requireSession("/");
 
-  // 計次點就在這一行。這頁是 force-dynamic，一次請求就是一次 render，
-  // 所以「render 過一次」＝「這個人點進來看過一次」。
-  // 唯一會失真的來源是 <Link href="/"> 的自動預取（其他頁的 Logo），
-  // 所以 Header 那顆 Link 設了 prefetch={false}。
-  // 計次寫檔失敗不該讓人看不到自己的直屬，所以吞掉錯誤只留 log。
-  await recordView(session.email).catch((error) => {
-    console.error("[views] 記錄瀏覽失敗：", error);
-  });
-
   const lookup = await lookupByEmail(session.email);
 
   let body: React.ReactNode;
@@ -83,6 +74,20 @@ export default async function HomePage({
     );
   } else {
     const flags = await revealFlagsFor(lookup);
+
+    // 計次點就在這裡，而且只在「這次 render 真的揭曉了誰」時才算。
+    // admin 那頁問的是「誰還沒看到自己的直屬」，所以停在徽記等相認的畫面
+    // 不算——把它算進去，「看過」就退化成「登入過」。
+    // 這頁是 force-dynamic，一次 render ＝ 一次瀏覽；等待期間的輪詢改問
+    // /api/reveal/status，只有狀態真的翻了才 router.refresh()，不會灌水
+    // （舊版每 3 秒 refresh 一次，實測 3.5 分鐘就記了 52 次）。
+    // 另一個失真來源是 <Link href="/"> 的自動預取，所以 Header 那顆設了 prefetch={false}。
+    // 計次寫檔失敗不該讓人看不到自己的直屬，所以吞掉錯誤只留 log。
+    if (flags.some(Boolean)) {
+      await recordView(session.email).catch((error) => {
+        console.error("[views] 記錄瀏覽失敗：", error);
+      });
+    }
 
     // ★ 個資邊界就在這一行 ★
     // 沒揭曉的配對只放徽記，person 給 null。RevealSection 是 client component，
