@@ -13,6 +13,8 @@ interface HeaderProps {
   loginUrl: string;
   logoutUrl: string;
   portalUrl: string;
+  // buddy 的 role=admin 才給看的 /admin 入口（瀏覽計次）。判斷在呼叫端做，這裡只負責畫。
+  isAdmin?: boolean;
 }
 
 export function Header({
@@ -22,14 +24,18 @@ export function Header({
   loginUrl,
   logoutUrl,
   portalUrl,
+  isAdmin,
 }: HeaderProps) {
   return (
     <header className="sticky top-0 z-50 h-16 bg-background/90 backdrop-blur-md border-b-2 border-foreground/20">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 h-full flex items-center justify-between gap-3">
         <div className="flex shrink-0 items-center gap-3">
           <PortalLink href={portalUrl} />
+          {/* prefetch={false}：個人頁的 render 就是「看過一次」的計次點（見 src/lib/views.ts），
+              自動預取會在使用者沒點的情況下幫他計一次。 */}
           <Link
             href="/"
+            prefetch={false}
             className="font-mono text-lg font-extrabold tracking-tight text-foreground"
           >
             T<span className="text-primary">-</span>Buddy
@@ -38,6 +44,14 @@ export function Header({
 
         {isLoggedIn ? (
           <div className="flex min-w-0 items-center gap-3">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="shrink-0 rounded-md border-2 border-foreground bg-primary px-2.5 py-1 font-mono text-[11px] font-bold text-primary-foreground shadow-[2px_2px_0_0_var(--color-foreground)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-[3px_3px_0_0_var(--color-foreground)]"
+              >
+                管理後台
+              </Link>
+            )}
             <span
               title={userEmail ?? undefined}
               className="max-w-[40vw] truncate rounded-md border-2 border-foreground bg-card px-2 py-0.5 font-mono text-[11px] font-bold text-foreground sm:max-w-none"

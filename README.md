@@ -2,14 +2,15 @@
 
 115 學年度直屬活動限定的**臨時服務**。活動結束就撤下（見最後一節）。
 
-兩個入口，觀眾不同：
+三個入口，觀眾不同：
 
 | 路徑 | 誰能看 | 看到什麼 |
 | --- | --- | --- |
 | `/` | 全校師生（tpass SSO 登入） | **只有自己那一組**：相認前是徽記，相認後才有對方姓名、年級、信箱 |
 | `/roster/<BUDDY_ROSTER_TOKEN>` | 知道路徑的人（免登入） | **總表**：學長姐分組卡片 + 姓名搜尋，不含信箱 |
+| `/admin` | buddy 的 role=admin | **瀏覽狀況**：名單上每個人看過幾次、最後一次何時、相認了幾組 |
 
-沒有資料庫、沒有管理介面。配對資料與相認紀錄各是一份 JSON 檔（`data/`，不進 git）。
+沒有資料庫。配對資料、相認紀錄、瀏覽計次各是一份 JSON 檔（`data/`，不進 git）。
 
 ---
 
@@ -39,6 +40,22 @@
 
 ---
 
+## 瀏覽狀況（`/admin`）
+
+想知道「誰還沒點進來看自己的直屬」就開這頁。
+
+- **誰進得去**：JWT 的 `permissions.buddy.role === "admin"`。名單在 **auth 的 `/admin` panel** 管，
+  本服務不自維護 allowlist、不吃 env。非 admin 一律 404（不透露這頁存在，同總表的中性 404）。
+- **計次點**：個人頁 `/` 每 render 一次就 +1，寫進 `data/views.json`（同 `reveals.json` 的
+  單 process 序列化 + `.tmp` → `rename` 模式）。跟有沒有相認、有沒有看到對方是誰無關。
+  Header 的 Logo `<Link href="/">` 因此設了 `prefetch={false}`——自動預取會在使用者沒點的
+  情況下幫他計一次。
+- **名單以 `pairs.json` 為準**：沒進來過的人才會顯示成「未看」。不在配對表上的人（老師、
+  好奇的其他學生）就算進過首頁也不會出現在這頁。
+- **計次從功能上線那一刻起算**，之前的瀏覽沒有回溯資料。
+
+---
+
 ## 更新配對表
 
 表格改版時只要兩行，**不需要重新部署**：
@@ -56,7 +73,7 @@ pnpm push:data                                   # 送上主機
 > ⚠️ **活動開始後，只能在有本機 `data/pairs.json` 的那台機器上重跑 `sync`。**
 > 徽記與配對碼是靠「讀舊檔沿用舊值」保持穩定的；在沒有舊檔的機器上重跑會整批重擲，
 > 所有人的徽記與碼當場失效，已經相認的人也對不上。
-> （`sync` 只動 `pairs.json`，不會碰 `reveals.json`。）
+> （`sync` 只動 `pairs.json`，不會碰 `reveals.json` / `views.json`。）
 
 `pnpm push:data` 走 `../scripts/ssh.sh`（ops repo），先寫 `.tmp` 再 `mv`，中途斷線不會讓線上讀到半份 JSON。
 遠端路徑從 `tpass-registry/services.json` 推導，主機位址只存在 ops 層 gitignored 的 `deploy/host.env`。

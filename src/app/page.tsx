@@ -4,9 +4,10 @@ import QRCode from "qrcode";
 import { LogIn } from "lucide-react";
 import { authConfig } from "@/config/auth";
 import { requireSession } from "@/lib/guard";
-import { getSession } from "@/lib/tpass-auth";
+import { getSession, permOf } from "@/lib/tpass-auth";
 import { lookupByEmail, otherOf } from "@/lib/pairs";
 import { revealFlagsFor } from "@/lib/reveal-policy";
+import { recordView } from "@/lib/views";
 import { RevealSection, type RevealCard } from "@/components/RevealSection";
 import { Header } from "@/components/common/Header";
 import { Footer } from "@/components/common/Footer";
@@ -58,6 +59,16 @@ export default async function HomePage({
   if (logout === "1" && !(await getSession())) return <LoggedOutNotice />;
 
   const session = await requireSession("/");
+
+  // 計次點就在這一行。這頁是 force-dynamic，一次請求就是一次 render，
+  // 所以「render 過一次」＝「這個人點進來看過一次」。
+  // 唯一會失真的來源是 <Link href="/"> 的自動預取（其他頁的 Logo），
+  // 所以 Header 那顆 Link 設了 prefetch={false}。
+  // 計次寫檔失敗不該讓人看不到自己的直屬，所以吞掉錯誤只留 log。
+  await recordView(session.email).catch((error) => {
+    console.error("[views] 記錄瀏覽失敗：", error);
+  });
+
   const lookup = await lookupByEmail(session.email);
 
   let body: React.ReactNode;
@@ -120,6 +131,7 @@ export default async function HomePage({
         loginUrl={authConfig.loginUrl}
         logoutUrl={authConfig.logoutUrl}
         portalUrl={authConfig.portalUrl}
+        isAdmin={permOf(session).role === "admin"}
       />
 
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center gap-8 px-4 py-10 sm:px-6">

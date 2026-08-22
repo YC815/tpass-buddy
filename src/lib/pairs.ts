@@ -142,3 +142,43 @@ export async function rosterBySenior(): Promise<SeniorGroup[]> {
   );
   return sorted;
 }
+
+// admin 頁用：名單上的每一個人一列（學長姐帶 2 位學弟妹也只有一列）。
+// 這裡刻意帶 email——它是跟 views.json / reveals.json 對照的鍵，
+// 不像總表頁那樣是要送進 client 的資料。
+export interface Participant {
+  name: string;
+  email: string; // 已 normalize（小寫）
+  grade: string;
+  role: Role;
+  // 名下的配對，用來算「相認了幾組」。
+  pairs: Pair[];
+}
+
+export async function participants(): Promise<Participant[]> {
+  const { pairs } = await loadPairs();
+  const people = new Map<string, Participant>();
+
+  const add = (person: Person, role: Role, pair: Pair) => {
+    const key = normalize(person.email);
+    const entry = people.get(key) ?? {
+      name: person.name,
+      email: key,
+      grade: person.grade,
+      role,
+      pairs: [],
+    };
+    entry.pairs.push(pair);
+    people.set(key, entry);
+  };
+
+  for (const pair of pairs) {
+    add(pair.junior, "junior", pair);
+    add(pair.senior, "senior", pair);
+  }
+
+  return [...people.values()].sort(
+    (a, b) =>
+      gradeRank(a.grade) - gradeRank(b.grade) || byName(a.name, b.name),
+  );
+}
