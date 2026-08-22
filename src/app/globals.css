@@ -45,3 +45,43 @@ body {
   font-family: var(--font-sans);
   font-weight: 500;
 }
+
+/* 揭曉動畫。翻牌本身用 transition（見 BadgeCard），這裡只管翻完之後
+   卡片正面內容依序進場——一次全部出現就沒有「揭曉」的層次感了。
+   .revealed 由 BadgeCard 在翻轉 transitionend 時掛上。 */
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.6); }
+  70%  { opacity: 1; transform: scale(1.08); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@keyframes rise-in {
+  0%   { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.stagger > * {
+  opacity: 0;
+}
+
+.stagger.revealed > * {
+  animation: rise-in 0.4s ease-out both;
+}
+
+.stagger.revealed > *:nth-child(1) {
+  animation-name: pop-in;
+  animation-duration: 0.5s;
+}
+.stagger.revealed > *:nth-child(2) { animation-delay: 0.12s; }
+.stagger.revealed > *:nth-child(3) { animation-delay: 0.24s; }
+.stagger.revealed > *:nth-child(4) { animation-delay: 0.36s; }
+
+/* 無障礙底線：系統開了「減少動態效果」就整套停掉，直接顯示。
+   confetti 也會自己讀這個偏好（見 lib/confetti.ts）。 */
+@media (prefers-reduced-motion: reduce) {
+  .stagger > *,
+  .stagger.revealed > * {
+    opacity: 1;
+    animation: none;
+  }
+}

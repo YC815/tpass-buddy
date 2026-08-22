@@ -13,11 +13,22 @@ export interface Person {
   name: string;
   email: string;
   grade: string;
+  // 相認用的六位數字碼。屬於「一個人」，QR 裡編的就是它。
+  // 由 scripts/sync-pairs.mjs 產生並在 re-sync 時沿用。
+  code: string;
+}
+
+// 活動當天兩個人在人群裡認出彼此的記號。屬於「一對」，不是屬於人——
+// 帶 2 位學弟妹的學長姐會有 2 枚徽記，各自對應一位學弟妹。
+export interface BadgeMark {
+  emoji: string;
+  name: string;
 }
 
 export interface Pair {
   junior: Person;
   senior: Person;
+  badge: BadgeMark;
 }
 
 export interface PairData {
@@ -29,17 +40,30 @@ export interface PairData {
 // 總表頁專用：剝掉信箱只留渲染用得到的欄位。
 // 光是「不顯示」還不夠——傳進 JSX 的值（連 key 也算）會被序列化進 RSC payload，
 // 在 HTML 原始碼裡看得到。要它不外流，就不能讓它進到這一層。
-export type PublicPerson = Omit<Person, "email">;
+//
+// code 也一定要剝掉：總表列出全部 90 個人，附上碼就等於把整場遊戲的鑰匙
+// 印在同一頁上——拿得到總表連結的人可以照著暴力試出自己的直屬。
+export type PublicPerson = Omit<Person, "email" | "code">;
 
 export interface SeniorGroup {
   senior: PublicPerson;
   juniors: PublicPerson[];
 }
 
-export type Lookup =
-  | { role: "junior"; senior: Person }
-  | { role: "senior"; juniors: Person[] }
-  | null;
+// 登入者在這份表上的身分與他名下的配對。
+// 統一回「一疊 pair」而不是分成 senior / juniors 兩種形狀——配對是遊戲的單位
+// （一枚徽記一組碼），上層只要對每個 pair 做同一件事，不必分岔。
+export type Role = "junior" | "senior";
+
+export interface Lookup {
+  role: Role;
+  pairs: Pair[];
+}
+
+// 從一組配對裡取出「對方」。登入者是新生就是學長姐，反之亦然。
+export function otherOf(pair: Pair, role: Role): Person {
+  return role === "junior" ? pair.senior : pair.junior;
+}
 
 // 靜態限定在 data/ 底下：Turbopack 的檔案追蹤看得懂這個形式，
 // 換成可由 env 指定的路徑會讓它把整個專案都追蹤進去（build 警告）。
@@ -70,18 +94,16 @@ export async function loadPairs(): Promise<PairData> {
 
 const normalize = (email: string) => email.trim().toLowerCase();
 
-// 用登入者的信箱找出他那一組。找不到回 null（老師、未參與者都走這條）。
-export async function lookupByEmail(email: string): Promise<Lookup> {
+// 用登入者的信箱找出他名下的配對。找不到回 null（老師、未參與者都走這條）。
+export async function lookupByEmail(email: string): Promise<Lookup | null> {
   const target = normalize(email);
   const { pairs } = await loadPairs();
 
-  const asJunior = pairs.find((p) => normalize(p.junior.email) === target);
-  if (asJunior) return { role: "junior", senior: asJunior.senior };
+  const asJunior = pairs.filter((p) => normalize(p.junior.email) === target);
+  if (asJunior.length > 0) return { role: "junior", pairs: asJunior };
 
-  const juniors = pairs
-    .filter((p) => normalize(p.senior.email) === target)
-    .map((p) => p.junior);
-  if (juniors.length > 0) return { role: "senior", juniors };
+  const asSenior = pairs.filter((p) => normalize(p.senior.email) === target);
+  if (asSenior.length > 0) return { role: "senior", pairs: asSenior };
 
   return null;
 }

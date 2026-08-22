@@ -7,9 +7,11 @@
 // 刻意只取「誰對誰」需要的六欄。相似分數與備註不讀——備註含內部討論
 // （「不是男生，先改配…」），沒有理由讓它離開你的電腦。
 import ExcelJS from "exceljs";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
+import { randomInt } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import { BADGES } from "./badges.mjs";
 
 const SHEET = "配對結果";
 const OUT = path.resolve("data/pairs.json");
@@ -140,6 +142,74 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
+// ── 徽記與配對碼 ──────────────────────────────────────────────────────
+//
+// 這兩樣是活動當天的遊戲道具：徽記讓兩個人在人群裡找到彼此（屬於「一對」），
+// 配對碼是掃 QR / 手動輸入時的憑據（屬於「一個人」）。
+//
+// ★ 最重要的規則：re-sync 一律沿用舊值。★
+// 活動進行到一半換表格是常有的事，若每次 sync 都重擲，所有人的徽記與碼會
+// 當場失效、已經相認的人也對不上。所以先讀舊的 pairs.json，能沿用就沿用，
+// 只有「新出現的配對 / 新出現的人」才分配新值。
+//
+// 代價是：sync 一定要在**有舊 data/pairs.json 的那台機器**上跑。
+// 換一台電腦重跑 = 全部重擲。README 有寫這條警告。
+const OLD = await readFile(OUT, "utf8").then(JSON.parse).catch(() => null);
+
+const pairKey = ({ junior, senior }) => `${junior.email}|${senior.email}`;
+
+const oldBadges = new Map(); // pairKey → badge
+const oldCodes = new Map(); // email → code
+for (const pair of OLD?.pairs ?? []) {
+  if (pair.badge?.emoji) oldBadges.set(pairKey(pair), pair.badge);
+  for (const side of ["junior", "senior"]) {
+    if (pair[side]?.code) oldCodes.set(pair[side].email, pair[side].code);
+  }
+}
+
+if (pairs.length > BADGES.length) {
+  die(`徽記不夠：${pairs.length} 組配對，池子裡只有 ${BADGES.length} 個（去 scripts/badges.mjs 加）`);
+}
+
+// 沿用的徽記先佔位，剩下的才給新配對用。
+const takenEmoji = new Set();
+for (const pair of pairs) {
+  const kept = oldBadges.get(pairKey(pair));
+  if (kept && !takenEmoji.has(kept.emoji)) {
+    pair.badge = kept;
+    takenEmoji.add(kept.emoji);
+  }
+}
+const spare = BADGES.filter((b) => !takenEmoji.has(b.emoji));
+for (const pair of pairs) {
+  if (!pair.badge) pair.badge = spare.shift();
+}
+
+// 六位數字碼。100 萬組空間裝 90 個人，碰撞重擲即可。
+const takenCodes = new Set();
+const codeByEmail = new Map();
+const newCode = () => {
+  for (;;) {
+    const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
+    if (!takenCodes.has(code)) return code;
+  }
+};
+for (const pair of pairs) {
+  for (const side of ["junior", "senior"]) {
+    const person = pair[side];
+    // 帶 2 位學弟妹的學長姐會在兩列各自被讀成一個物件，但他是同一個人，
+    // 只能有一組碼——所以認 email 不認物件。
+    let code = codeByEmail.get(person.email);
+    if (!code) {
+      const kept = oldCodes.get(person.email);
+      code = kept && !takenCodes.has(kept) ? kept : newCode();
+      codeByEmail.set(person.email, code);
+      takenCodes.add(code);
+    }
+    person.code = code;
+  }
+}
+
 // 版本字串：從 A1 標題抓 v12 這種；抓不到就用檔名，純粹給人在總表頁核對用。
 const title = toText(sheet.getRow(1).getCell(1).value);
 const version = title.match(/v\d+/)?.[0] ?? path.basename(source);
@@ -156,6 +226,13 @@ for (const { senior } of pairs) {
 }
 const doubles = [...bySenior.values()].filter((n) => n > 1).length;
 
+const freshBadges = pairs.filter((p) => !oldBadges.has(pairKey(p))).length;
+
 console.log(`✅ ${OUT}`);
 console.log(`   版本 ${version}｜${pairs.length} 組配對｜${bySenior.size} 位學長姐（其中 ${doubles} 位帶 2 位以上）`);
+console.log(
+  OLD
+    ? `   徽記：沿用 ${pairs.length - freshBadges} 組、新配 ${freshBadges} 組｜配對碼 ${codeByEmail.size} 組`
+    : `   徽記：全新分配 ${pairs.length} 組｜配對碼 ${codeByEmail.size} 組（沒有舊 pairs.json 可沿用）`,
+);
 console.log(`   下一步：pnpm push:data（送上主機，不需要重新部署）`);

@@ -25,6 +25,14 @@ const die = (msg) => {
 
 if (!existsSync(LOCAL)) die(`還沒有 ${LOCAL}——先跑 pnpm sync <xlsx>`);
 if (!existsSync(SSH)) die(`找不到 ${SSH}（本 repo 必須與 tpass-ops 並排 clone）`);
+
+// scripts/dev-add-me.mjs 會在本機塞測試配對並蓋上 devSeed 記號。那份檔案絕不能上主機
+// ——假人會出現在總表上，真人的徽記也可能被佔走。重跑 pnpm sync 就乾淨了。
+const local = JSON.parse(readFileSync(LOCAL, "utf8"));
+const seeded = (local.pairs ?? []).filter((p) => p.devSeed).length;
+if (seeded > 0) {
+  die(`${LOCAL} 裡有 ${seeded} 組本機測試配對（devSeed），拒絕上傳。先跑 pnpm sync <xlsx> 重生一份乾淨的。`);
+}
 if (!existsSync(REGISTRY)) die(`找不到註冊表 ${REGISTRY}`);
 
 const { services, server } = JSON.parse(readFileSync(REGISTRY, "utf8"));

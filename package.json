@@ -16,19 +16,23 @@
     "start:https": "NODE_EXTRA_CA_CERTS=\"$(mkcert -CAROOT)/rootCA.pem\" NODE_ENV=production node server.mjs",
     "lint": "eslint",
     "sync": "node scripts/sync-pairs.mjs",
-    "push:data": "node scripts/push-data.mjs"
+    "push:data": "node scripts/push-data.mjs",
+    "dev:add-me": "node scripts/dev-add-me.mjs"
   },
   "dependencies": {
     "@next/env": "16.2.10",
     "jose": "^6.2.3",
+    "jsqr": "^1.4.0",
     "lucide-react": "^1.23.0",
     "next": "16.2.10",
+    "qrcode": "^1.5.4",
     "react": "19.2.4",
     "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "^1.0.0",
