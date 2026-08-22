@@ -123,6 +123,26 @@ pnpm dev                            # https://buddy.lvh.me:3008
 
 檢查：`pnpm lint` + `pnpm exec tsc --noEmit`。
 
+### 附身：用別人的身分看畫面（`BUDDY_DEV_AS`）
+
+個人頁只顯示「你自己那一組」，所以要驗證某個人看到什麼（他的直屬有沒有留言、
+卡片會不會爆版），只能附身。給姓名或信箱都行：
+
+```bash
+env BUDDY_DEV_AS=陳某某 BUDDY_FORCE_REVEAL=true pnpm dev   # env 前綴：fish 也吃得下
+```
+
+- 不必動 `.env.local`（真的 process env 蓋得過 `.env` 檔），也可以寫進 `.env.local` 長期開著。
+- 掛在 `getSession()` 上，所以 page、總表、兩支 API 看到的是同一個身分，不會出現
+  「頁面附身了但 API 沒有」。**驗章本身一個字沒動。**
+- 要配 `BUDDY_FORCE_REVEAL=true` 才看得到翻開後的正面；不加就是卡片背面（還沒相認）。
+- 每次生效都印一行 `[dev-as] ⚠️`，免得忘了開著它 debug 一小時。
+- 副作用：附身期間的瀏覽會記在**本機**的 `views.json` 上（掛在被附身者名下）。
+  那個檔不會上主機（`push:data` 只送 `pairs.json` / `profiles.json`），線上統計不受影響。
+
+生產環境恆為 no-op：`NODE_ENV === "production"` 直接回 null（Next 會 inline 掉，
+正式 build 裡是死碼），主機的 `.env.local` 也沒有這顆 env。實作見 `src/lib/dev-session.ts`。
+
 ---
 
 ## 串接

@@ -14,6 +14,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { createRemoteJWKSet, jwtVerify } from "jose";
 import { authConfig } from "@/config/auth";
+import { devSession } from "@/lib/dev-session";
 
 // 權限 claim 本體（契約 v2 Phase 6，跟 tpass-auth/src/lib/permissions/types.ts 同型別）。
 export type Role = "admin" | "moderator" | "default";
@@ -78,6 +79,12 @@ export async function verifySession(
 
 // 讀目前 session：看自己的 host-only cookie（v2）。
 export async function getSession(): Promise<TPassClaims | null> {
+  // 本機附身（BUDDY_DEV_AS）。掛在這裡是因為 page / roster / 兩支 API 都問這一支，
+  // 換一個入口就會出現「頁面附身了但 API 沒有」的鬼狀態。
+  // 生產環境恆為 null——判斷在 dev-session.ts，那裡有兩道鎖。驗章本身一個字沒動。
+  const impersonated = await devSession();
+  if (impersonated) return impersonated;
+
   const token = (await cookies()).get(authConfig.ownCookieName)?.value;
   if (!token) return null;
   return verifySession(token);
