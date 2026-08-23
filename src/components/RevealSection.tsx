@@ -1,17 +1,19 @@
 "use client";
 
-// 個人頁的主體：標題、我的 QR/配對碼、徽記卡、掃描器、confetti、輪詢。
+// 個人頁的主體：標題、比賽區塊、我的 QR/配對碼、徽記卡、掃描器、confetti、輪詢。
 //
 // ★ 資料邊界（最重要的一條）★
 // props 裡未揭曉的卡**只有徽記**，沒有對方的姓名 email。傳進 client component 的東西
 // 會完整出現在 HTML 的 RSC payload 裡，「不顯示」擋不住看原始碼的人。
 // 對方資料只會在 server 端確認這一對已相認之後才進到 cards——由 page.tsx 負責把關。
+// 比賽名次同理：race.teams 只有「自己這幾隊」的名次，別人的成績要看大螢幕。
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MessageSquareHeart, QrCode, ScanLine } from "lucide-react";
 import { BadgeCard, type RevealedPerson } from "@/components/BadgeCard";
 import { CodeInput } from "@/components/CodeInput";
 import { Scanner } from "@/components/Scanner";
+import { RaceBanner } from "@/components/RaceBanner";
 import { Button, Card } from "@/components/ui/primitives";
 import { fireConfetti } from "@/lib/confetti";
 import type { BadgeMark, Role } from "@/lib/pairs";
@@ -19,6 +21,21 @@ import type { BadgeMark, Role } from "@/lib/pairs";
 export interface RevealCard {
   badge: BadgeMark;
   person: RevealedPerson | null; // null = 還沒相認
+}
+
+// 比賽狀態。null = 沒在比賽（平日就是這個）。
+//
+// 計分看隊、相認看對，所以這裡是兩個獨立的欄位：
+//   finish  一隊只有一個名次（一位學長姐＝一隊，取最早找到的那一位）
+//   pending 我名下還有幾對沒相認——帶 2 位學弟妹的學長姐成績定了之後，
+//           第二位還是要掃，那一掃只是不計分。
+export interface RaceProps {
+  phase: "racing" | "ended";
+  startedAt: string | null;
+  serverNow: string;
+  finish: { rank: number; ms: number } | null;
+  pending: number;
+  total: number;
 }
 
 // lucide 1.x 沒有品牌圖示（Instagram 在裡面找不到），所以自己畫一個。
@@ -43,6 +60,8 @@ function InstagramGlyph({ className }: { className?: string }) {
 }
 
 const POLL_MS = 3000;
+// 比賽中問密一點：完賽那一刻要盡快在自己畫面上停錶。
+const POLL_MS_RACING = 2000;
 
 const ERRORS: Record<string, string> = {
   not_your_buddy: "這不是你的直屬，再找找看",
@@ -52,18 +71,40 @@ const ERRORS: Record<string, string> = {
   unauthorized: "登入過期了，重新整理一次",
 };
 
+interface StatusBody {
+  revealed?: unknown;
+  phase?: unknown;
+  round?: unknown;
+  finish?: { rank?: unknown } | null;
+  pending?: unknown;
+}
+
+// 「這一輪跟上一輪比，有沒有任何我在乎的東西變了」。
+// 只有簽章不同才 router.refresh()——無條件 refresh 會把 admin 的瀏覽計次灌爆
+// （實測一個人 3.5 分鐘記了 52 次）。
+function signature(body: StatusBody): string {
+  const revealed = Array.isArray(body.revealed)
+    ? body.revealed.map((open) => (open ? "1" : "0")).join("")
+    : "";
+  const rank = body.finish ? String(body.finish.rank) : "-";
+  // pending 也要進簽章：第二位學弟妹掃到之後名次不會變，但掃描區該收起來。
+  return `${String(body.phase)}|${String(body.round)}|${revealed}|${rank}|${String(body.pending)}`;
+}
+
 export function RevealSection({
   userName,
   role,
   myCode,
   qrSvg,
   cards,
+  race,
 }: {
   userName: string;
   role: Role;
   myCode: string;
   qrSvg: string;
   cards: RevealCard[];
+  race: RaceProps | null;
 }) {
   const router = useRouter();
   const [scanning, setScanning] = useState(false);
@@ -79,6 +120,16 @@ export function RevealSection({
   );
 
   const allRevealed = cards.every((c) => c.person !== null);
+  const racing = race?.phase === "racing";
+  const ranked = race?.finish != null;
+
+  // 還需要掃碼嗎？兩種情況：還沒相認（平日蓋牌時），或比賽中還有沒相認的配對。
+  // 直屬已經公布的比賽日走的是後者——卡片是翻開的，但碼還是要掃才算相認。
+  //
+  // ★ 看的是 pending（每一對）而不是 finish（隊伍名次）★
+  // 帶 2 位學弟妹的學長姐找到第一位之後成績就定了，但第二位還是要掃到——
+  // 那一掃只是不計分，不是不用掃。
+  const needsScan = !allRevealed || (racing && (race?.pending ?? 0) > 0);
 
   // 有卡從「沒人」變成「有人」→ 播動畫 + 彩帶。
   // 自己掃到、被對方掃到（輪詢刷新）都會走到這裡，不必分兩條路。
@@ -92,37 +143,58 @@ export function RevealSection({
     if (deckRef.current) fireConfetti(deckRef.current);
   }, [cards]);
 
-  // 對方掃了我之後，我這邊自己翻開，不必叫使用者重整。
-  // 全開就停；分頁切走也停（省電，也省得回來時一次噴一堆請求）。
-  //
-  // 輪詢問的是 /api/reveal/status（薄端點，只回揭曉旗標、不回姓名），
-  // **狀態真的翻了才** router.refresh()。原本每 3 秒無條件 refresh 一次，
-  // 等於每分鐘重跑 20 次整頁 server render——連帶把 admin 的瀏覽計次灌爆
-  // （實測一個人 3.5 分鐘記了 52 次）。等待中的人不該在統計裡留下任何痕跡。
+  // 隊伍拿到名次的那一刻噴一次彩帶——直屬早就公布了，卡片不會再翻，
+  // 沒有這個就完全沒有「完成了」的反饋。
+  const wasRanked = useRef(ranked);
   useEffect(() => {
-    if (allRevealed) return;
+    if (racing && ranked && !wasRanked.current && deckRef.current) {
+      fireConfetti(deckRef.current);
+    }
+    wasRanked.current = ranked;
+  }, [racing, ranked]);
+
+  // 輪詢：等對方掃我（我這邊自己翻開），以及等比賽狀態變化（鳴槍、收場、
+  // 主持人手動幫我登記完賽）。全部停了就不再問；分頁切走也停
+  // （省電，也省得回來時一次噴一堆請求）。
+  //
+  // 問的是 /api/reveal/status（薄端點，只回旗標與自己的名次、不回姓名），
+  // **簽章真的變了才** router.refresh()。
+  const pollNeeded = !allRevealed || racing;
+  const sigRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!pollNeeded) return;
 
     let stopped = false;
-    const timer = setInterval(async () => {
-      if (document.visibilityState !== "visible") return;
-      try {
-        const res = await fetch("/api/reveal/status", { cache: "no-store" });
-        if (!res.ok) return;
-        const body = (await res.json()) as { revealed?: unknown };
-        if (stopped || !Array.isArray(body.revealed)) return;
-        // 有任何一格從「沒開」變「開」→ 交給 server 重新組資料（姓名只從那裡來）。
-        if (body.revealed.some((open, i) => open && !seen.current[i])) {
-          router.refresh();
+    const timer = setInterval(
+      async () => {
+        if (document.visibilityState !== "visible") return;
+        try {
+          const res = await fetch("/api/reveal/status", { cache: "no-store" });
+          if (!res.ok) return;
+          const body = (await res.json()) as StatusBody;
+          if (stopped) return;
+
+          const sig = signature(body);
+          // 第一次拿到就先記下來當基準，不 refresh——props 已經是同一份資料了。
+          if (sigRef.current === null) {
+            sigRef.current = sig;
+            return;
+          }
+          if (sig !== sigRef.current) {
+            sigRef.current = sig;
+            router.refresh();
+          }
+        } catch {
+          // 網路瞬斷不必吵使用者，下一輪再問。
         }
-      } catch {
-        // 網路瞬斷不必吵使用者，下一輪再問。
-      }
-    }, POLL_MS);
+      },
+      racing ? POLL_MS_RACING : POLL_MS,
+    );
     return () => {
       stopped = true;
       clearInterval(timer);
     };
-  }, [allRevealed, router]);
+  }, [pollNeeded, racing, router]);
 
   const submit = useCallback(
     async (code: string): Promise<boolean> => {
@@ -142,6 +214,8 @@ export function RevealSection({
         // 卡片內容一律以 server 為準：refresh 之後 page 會把對方資料放進 cards，
         // 上面那個 effect 就會接手播動畫。這裡不自己塞資料，免得兩份真相對不起來。
         setScanning(false);
+        // 簽章作廢：下一輪輪詢會重新取基準，不會因為「跟上次一樣」而漏掉這次變化。
+        sigRef.current = null;
         router.refresh();
         return true;
       } catch {
@@ -169,8 +243,19 @@ export function RevealSection({
         <h1 className="text-3xl font-extrabold tracking-tight">{heading}</h1>
       </header>
 
+      {race && (
+        <RaceBanner
+          phase={race.phase}
+          startedAt={race.startedAt}
+          serverNow={race.serverNow}
+          finish={race.finish}
+          pending={race.pending}
+          total={race.total}
+        />
+      )}
+
       {/* 我的身分：對方掃這個 QR（或打這組碼）就能跟我相認 */}
-      {!allRevealed && (
+      {needsScan && (
         <Card className="flex w-full max-w-sm items-center gap-4 self-center">
           <span
             className="size-24 shrink-0 [&>svg]:size-full"
@@ -238,7 +323,7 @@ export function RevealSection({
         );
       })}
 
-      {!allRevealed && (
+      {needsScan && (
         <Card className="flex w-full max-w-sm flex-col items-center gap-3 self-center bg-muted text-center">
           <p className="font-bold">找到人了？其中一個人掃另一個就好</p>
           <div className="flex flex-wrap items-center justify-center gap-3">

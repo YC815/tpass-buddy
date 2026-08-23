@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/tpass-auth";
 import { lookupByEmail, otherOf } from "@/lib/pairs";
+import { codeOf, eventState, recordFinish } from "@/lib/event";
 import { recordReveal } from "@/lib/reveals";
 
 export const dynamic = "force-dynamic";
@@ -49,15 +50,25 @@ export async function POST(request: Request) {
   }
 
   // 只在「自己名下的配對」裡找這個碼。別人的碼在這裡永遠對不上。
-  const matched = lookup.pairs.find(
-    (pair) => otherOf(pair, lookup.role).code === code,
-  );
+  //
+  // 比對的是「本場的碼」：每次鳴槍都會整批重擲（見 src/lib/event.ts 的 rollCodes），
+  // 所以賽前互相截圖對方螢幕、鳴槍瞬間手打送出的那套玩法會直接失效。
+  // 還沒比過任何一場時退回 pairs.json 的原碼，平日行為完全不變。
+  const state = await eventState();
+  const matched = lookup.pairs.find((pair) => {
+    const other = otherOf(pair, lookup.role);
+    return codeOf(state, other.email, other.code) === code;
+  });
   if (!matched) {
     return NextResponse.json({ error: "not_your_buddy" }, { status: 404 });
   }
 
   // 冪等：兩個人同時互掃是正常操作，第二次不該報錯。
   await recordReveal(matched.junior.email, matched.senior.email);
+
+  // 比賽進行中才計分。recordFinish 自己會擋掉非 racing 的階段與重複登記，
+  // 所以這裡無條件呼叫，不必在兩個地方各判斷一次。
+  await recordFinish(matched.junior.email, matched.senior.email, "scan");
 
   const person = otherOf(matched, lookup.role);
   return NextResponse.json({

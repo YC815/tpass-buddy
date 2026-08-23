@@ -11,11 +11,14 @@
 import { Eye, EyeOff, Users, MousePointerClick } from "lucide-react";
 import { authConfig } from "@/config/auth";
 import { requireAdmin } from "@/lib/guard";
-import { participants } from "@/lib/pairs";
+import { loadPairs, participants } from "@/lib/pairs";
+import { eventState } from "@/lib/event";
+import { boardOf } from "@/lib/standings";
 import { revealKey, revealedKeys } from "@/lib/reveals";
 import { allViews } from "@/lib/views";
 import { Header } from "@/components/common/Header";
 import { Footer } from "@/components/common/Footer";
+import { EventControl } from "@/components/admin/EventControl";
 import { Badge, Card } from "@/components/ui/primitives";
 
 export const dynamic = "force-dynamic";
@@ -58,11 +61,15 @@ function Stat({
 export default async function AdminPage() {
   const session = await requireAdmin();
 
-  const [people, views, revealed] = await Promise.all([
+  const [people, views, revealed, state, { pairs }] = await Promise.all([
     participants(),
     allViews(),
     revealedKeys(),
+    eventState(),
+    loadPairs(),
   ]);
+
+  const board = boardOf(state, pairs);
 
   // participants() 已按年級 → 姓名排好；JS 的 sort 是穩定的，
   // 所以這裡只要再把「次數少的」往前挪，同次數的人就會保留原本的年級姓名序。
@@ -94,11 +101,29 @@ export default async function AdminPage() {
 
       <main className="mx-auto flex w-full max-w-4xl flex-1 flex-col gap-6 px-4 py-10 sm:px-6">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">瀏覽狀況</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight">主持人控制台</h1>
           <p className="mt-1 text-sm font-medium text-muted-foreground">
-            名單上每個人有沒有真的看到自己的直屬、看了幾次。只有頁面實際揭曉的那一次才計數——
-            停在徽記畫面等相認不算，所以「還沒看」包含「進來過但還沒相認」。計次從這個功能上線
-            那一刻起算，之前的瀏覽沒有紀錄。
+            直屬公布開關、比賽鳴槍與收場、即時排行榜。大螢幕在{" "}
+            <code className="font-mono">/stage/&lt;總表 token&gt;</code>。
+          </p>
+        </div>
+
+        <EventControl
+          publicReveal={state.publicReveal}
+          phase={state.phase}
+          round={state.round}
+          startedAt={state.startedAt}
+          board={board}
+          serverNow={new Date().toISOString()}
+        />
+
+        <div className="border-t-2 border-dashed border-foreground/30 pt-6">
+          <h2 className="text-2xl font-extrabold tracking-tight">瀏覽狀況</h2>
+          <p className="mt-1 text-sm font-medium text-muted-foreground">
+            名單上每個人有沒有點進來看自己的直屬、看了幾次。計次點在個人頁真的把直屬顯示出來的
+            那一次——所以「直屬公布」開著的時候，這欄等同「有沒有登入過」；關著（要現場相認）
+            的時候，停在徽記畫面等相認的那些 render 不算。計次從這個功能上線那一刻起算，
+            之前的瀏覽沒有紀錄。
           </p>
         </div>
 

@@ -5,11 +5,17 @@ import { LogIn } from "lucide-react";
 import { authConfig } from "@/config/auth";
 import { requireSession } from "@/lib/guard";
 import { getSession, permOf } from "@/lib/tpass-auth";
-import { lookupByEmail, otherOf } from "@/lib/pairs";
+import { loadPairs, lookupByEmail, otherOf, pairKeyOf } from "@/lib/pairs";
 import { profileOf } from "@/lib/profiles";
+import { codeOf, eventState } from "@/lib/event";
+import { boardOf, finishedPairKeys, teamKeyOf } from "@/lib/standings";
 import { revealFlagsFor } from "@/lib/reveal-policy";
 import { recordView } from "@/lib/views";
-import { RevealSection, type RevealCard } from "@/components/RevealSection";
+import {
+  RevealSection,
+  type RaceProps,
+  type RevealCard,
+} from "@/components/RevealSection";
 import { Header } from "@/components/common/Header";
 import { Footer } from "@/components/common/Footer";
 import { Card } from "@/components/ui/primitives";
@@ -113,10 +119,35 @@ export default async function HomePage({
     );
 
     // 我的碼屬於我這個人，不是屬於某一組配對——帶 2 位學弟妹的學長姐也只有一組。
-    const myCode =
-      lookup.role === "junior"
-        ? lookup.pairs[0].junior.code
-        : lookup.pairs[0].senior.code;
+    //
+    // 比賽期間拿的是「本場的碼」：每次鳴槍都整批重擲（src/lib/event.ts），
+    // 所以賽前截的圖一律失效。還沒比過任何一場就退回 pairs.json 的原碼。
+    const state = await eventState();
+    const me =
+      lookup.role === "junior" ? lookup.pairs[0].junior : lookup.pairs[0].senior;
+    const myCode = codeOf(state, me.email, me.code);
+
+    // 比賽區塊。待命中就整塊不存在，個人頁跟平常一模一樣。
+    // 只放「自己這一隊」的名次——別人的成績在大螢幕上，不從這裡外流。
+    //
+    // 計分看隊（一位學長姐，取最早找到的那一位），相認看對（每一對都要掃）：
+    // 所以名次只有一個，但 pending 可能還有 1（帶 2 位學弟妹的學長姐找到第一位之後）。
+    let race: RaceProps | null = null;
+    if (state.phase !== "idle") {
+      const { pairs } = await loadPairs();
+      const board = boardOf(state, pairs);
+      const myTeam = teamKeyOf(lookup.pairs);
+      const hit = board.standings.find((s) => s.seniorKey === myTeam);
+      const scanned = finishedPairKeys(state);
+      race = {
+        phase: state.phase,
+        startedAt: state.startedAt,
+        serverNow: new Date().toISOString(),
+        total: board.total,
+        finish: hit ? { rank: hit.rank, ms: hit.ms } : null,
+        pending: lookup.pairs.filter((p) => !scanned.has(pairKeyOf(p))).length,
+      };
+    }
 
     // QR 在 server 端產 SVG 直接內嵌，client 不必為此載任何東西。
     // 裡面編的就是那六位數碼，沒有姓名也沒有信箱。
@@ -133,6 +164,7 @@ export default async function HomePage({
         myCode={myCode}
         qrSvg={qrSvg}
         cards={cards}
+        race={race}
       />
     );
   }

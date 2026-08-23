@@ -182,3 +182,15 @@ export async function participants(): Promise<Participant[]> {
       gradeRank(a.grade) - gradeRank(b.grade) || byName(a.name, b.name),
   );
 }
+
+// 一對的識別鍵。比賽的完賽紀錄、後台的手動補登都拿它對照，
+// 形式與 reveals.ts 的 revealKey 相同（那支管揭曉，這支管配對本身）。
+export function pairKeyOf(pair: Pair): string {
+  return `${normalize(pair.junior.email)}|${normalize(pair.senior.email)}`;
+}
+
+// 一「隊」的識別鍵。比賽的隊伍單位是**學長姐**，不是配對——
+// 帶 2 位學弟妹的學長姐只算一隊，成績取最早找到的那一位（見 src/lib/standings.ts）。
+export function seniorKeyOf(pair: Pair): string {
+  return normalize(pair.senior.email);
+}

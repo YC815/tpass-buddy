@@ -17,7 +17,8 @@
     "lint": "eslint",
     "sync": "node scripts/sync-pairs.mjs",
     "push:data": "node scripts/push-data.mjs",
-    "dev:add-me": "node scripts/dev-add-me.mjs"
+    "dev:add-me": "node scripts/dev-add-me.mjs",
+    "seed:race": "node scripts/dev-race.mjs"
   },
   "dependencies": {
     "@next/env": "16.2.10",
