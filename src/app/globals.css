@@ -33,6 +33,12 @@
   --color-tone-rose-bg:      oklch(0.96 0.04  15);
   --color-tone-rose-badge:   oklch(0.89 0.09  15);
   --color-tone-rose-text:    oklch(0.5  0.17  18);
+
+  /* 獎牌色。design.md 的五組 tone 是服務分類用的，講不出「金銀銅」的順序感，
+     所以大螢幕的領獎台另外開三個 token（一樣是 OKLCH，一樣 light-only）。 */
+  --color-medal-gold:   oklch(0.85 0.14 85 );
+  --color-medal-silver: oklch(0.87 0.02 250);
+  --color-medal-bronze: oklch(0.76 0.10 55 );
 }
 
 :root {
@@ -76,12 +82,56 @@ body {
 .stagger.revealed > *:nth-child(3) { animation-delay: 0.24s; }
 .stagger.revealed > *:nth-child(4) { animation-delay: 0.36s; }
 
+/* ── 大螢幕（/stage）專用 ──────────────────────────────────────────────
+   投影用，全部是一次性的進場動畫，主持人按一次鍵播一段。
+   守 Neobrutalism：發光效果不用 soft shadow，改讓 hard shadow 換色。 */
+
+/* 領獎台底座由下往上長出來。transform-origin 必須是 bottom，
+   否則會變成從中間展開，看起來像縮放不像升起。 */
+@keyframes podium-rise {
+  0%   { transform: scaleY(0); }
+  100% { transform: scaleY(1); }
+}
+
+/* 得獎卡側翻進場。跟 BadgeCard 的翻牌是同一個手法（rotateY），
+   但那邊是 transition（狀態切換），這邊是 animation（一次性進場）。 */
+@keyframes card-flip-in {
+  0%   { opacity: 0; transform: rotateY(-90deg) scale(0.85); }
+  60%  { opacity: 1; transform: rotateY(8deg)   scale(1.03); }
+  100% { opacity: 1; transform: rotateY(0)      scale(1); }
+}
+
+/* 第一名的邊框脈動。禁 soft shadow，所以是 hard shadow 在金色與墨色之間交替。 */
+@keyframes glow-hard {
+  0%, 100% { box-shadow: 10px 10px 0 0 var(--color-foreground); }
+  50%      { box-shadow: 10px 10px 0 0 var(--color-medal-gold); }
+}
+
+/* 倒數第一名的處罰畫面。 */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-8px); }
+  75%      { transform: translateX(8px); }
+}
+
+.anim-podium-rise { animation: podium-rise 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.3) both; transform-origin: bottom; }
+.anim-flip-in     { animation: card-flip-in 0.7s ease-out both; }
+.anim-glow        { animation: glow-hard 1.4s ease-in-out infinite; }
+.anim-shake       { animation: shake 0.5s ease-in-out infinite; }
+
 /* 無障礙底線：系統開了「減少動態效果」就整套停掉，直接顯示。
-   confetti 也會自己讀這個偏好（見 lib/confetti.ts）。 */
+   confetti 也會自己讀這個偏好（見 lib/confetti.ts）。
+   大螢幕的動畫一併停——投影給一整個場地看，不能假設現場沒有人需要這個。 */
 @media (prefers-reduced-motion: reduce) {
   .stagger > *,
   .stagger.revealed > * {
     opacity: 1;
+    animation: none;
+  }
+  .anim-podium-rise,
+  .anim-flip-in,
+  .anim-glow,
+  .anim-shake {
     animation: none;
   }
 }
