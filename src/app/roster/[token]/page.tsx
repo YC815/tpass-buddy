@@ -5,8 +5,7 @@
 // 字串比對的時間差，加 timingSafeEqual 只是讓讀的人多花時間。
 import { notFound } from "next/navigation";
 import { Users } from "lucide-react";
-import { authConfig } from "@/config/auth";
-import { getSession } from "@/lib/tpass-auth";
+import { authConfig, tpass } from "@/config/auth";
 import { loadPairs, rosterBySenior } from "@/lib/pairs";
 import { RosterSearch } from "@/components/RosterSearch";
 import { Header } from "@/components/common/Header";
@@ -28,7 +27,7 @@ export default async function RosterPage({
     loadPairs(),
     // 純粹讓導覽列顯示「登入 / 登出」正確而已——這頁的存取權是路徑，不是 session，
     // 所以這裡永遠不能拿 session 當判斷條件。
-    getSession(),
+    tpass.getSession(),
   ]);
   const total = groups.reduce((sum, g) => sum + g.juniors.length, 0);
 

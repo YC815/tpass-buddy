@@ -2,9 +2,8 @@
 // 全班名單在 /roster/<token>，那是另一條路，這裡永遠不會洩漏第三人的資料。
 import QRCode from "qrcode";
 import { LogIn } from "lucide-react";
-import { authConfig } from "@/config/auth";
+import { authConfig, tpass } from "@/config/auth";
 import { requireSession } from "@/lib/guard";
-import { getSession, permOf } from "@/lib/tpass-auth";
 import { loadPairs, lookupByEmail, otherOf, pairKeyOf } from "@/lib/pairs";
 import { profileOf } from "@/lib/profiles";
 import { codeOf, eventState } from "@/lib/event";
@@ -63,7 +62,7 @@ export default async function HomePage({
   // 剛登出（auth 導回來帶 ?logout=1）時不能再導去登入，否則會被立刻彈回去、等於登不出去。
   // logout=1 只是畫面提示、不是憑證，所以仍要確認 session 真的無效才採信。
   const { logout } = await searchParams;
-  if (logout === "1" && !(await getSession())) return <LoggedOutNotice />;
+  if (logout === "1" && !(await tpass.getSession())) return <LoggedOutNotice />;
 
   const session = await requireSession("/");
 
@@ -178,7 +177,7 @@ export default async function HomePage({
         loginUrl={authConfig.loginUrl}
         logoutUrl={authConfig.logoutUrl}
         portalUrl={authConfig.portalUrl}
-        isAdmin={permOf(session).role === "admin"}
+        isAdmin={tpass.permOf(session).role === "admin"}
       />
 
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center gap-8 px-4 py-10 sm:px-6">

@@ -14,7 +14,7 @@
 import "server-only";
 import { authConfig } from "@/config/auth";
 import { loadPairs, type Person } from "@/lib/pairs";
-import type { TPassClaims } from "@/lib/tpass-auth";
+import type { TPassClaims } from "tpass-auth-js";
 
 // 名單裡找人：信箱優先（唯一），找不到再比對姓名（同名就取第一個並抱怨一聲）。
 // 學號信箱沒人記得住，所以姓名一定要能用。
@@ -53,6 +53,8 @@ export async function devSession(): Promise<TPassClaims | null> {
     name: person.name,
     // 附身就是看「這個人看到什麼」，所以權限給一般使用者，不給 admin。
     permissions: { [authConfig.serviceId]: { read: true, role: "default" } },
+    // 沒有入學學年度（附身對象的資料來自配對表，不是通行證）；契約 v2 的 null 就是這個意思。
+    entryYear: null,
     exp: Math.floor(Date.now() / 1000) + 3600,
   };
 }

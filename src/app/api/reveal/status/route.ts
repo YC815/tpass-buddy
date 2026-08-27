@@ -5,7 +5,7 @@
 // ——那些要走 POST /api/reveal 驗證過才給，或由 page 在 server 端組好。
 // 這裡被多打幾次也洩不出東西。
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/tpass-auth";
+import { tpass } from "@/config/auth";
 import { lookupByEmail, loadPairs, pairKeyOf } from "@/lib/pairs";
 import { eventState } from "@/lib/event";
 import { boardOf, finishedPairKeys, teamKeyOf } from "@/lib/standings";
@@ -14,7 +14,7 @@ import { revealFlagsFor } from "@/lib/reveal-policy";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getSession();
+  const session = await tpass.getSession();
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }

@@ -5,7 +5,7 @@
 // guard.ts 的 requireAdmin 用 notFound()，那是給頁面的；route 裡改回 404 JSON，
 // 但一樣不說「你不是 admin」——不透露這支端點存在。
 import { NextResponse } from "next/server";
-import { getSession, permOf } from "@/lib/tpass-auth";
+import { tpass } from "@/config/auth";
 import { loadPairs, pairKeyOf } from "@/lib/pairs";
 import {
   recordFinish,
@@ -30,8 +30,8 @@ type Action = (typeof ACTIONS)[number];
 const notFound = () => NextResponse.json({ error: "not_found" }, { status: 404 });
 
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session || permOf(session).role !== "admin") return notFound();
+  const session = await tpass.getSession();
+  if (!session || tpass.permOf(session).role !== "admin") return notFound();
 
   const body = (await request.json().catch(() => null)) as {
     action?: unknown;

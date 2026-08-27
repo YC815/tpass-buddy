@@ -7,7 +7,7 @@
 //
 // 所以 QR 被截圖亂傳也沒有意義：拿到別人的碼，除非你正好是他的直屬，否則什麼都問不出來。
 import { NextResponse } from "next/server";
-import { getSession } from "@/lib/tpass-auth";
+import { tpass } from "@/config/auth";
 import { lookupByEmail, otherOf } from "@/lib/pairs";
 import { codeOf, eventState, recordFinish } from "@/lib/event";
 import { recordReveal } from "@/lib/reveals";
@@ -29,7 +29,7 @@ function rateLimited(email: string): boolean {
 }
 
 export async function POST(request: Request) {
-  const session = await getSession();
+  const session = await tpass.getSession();
   if (!session) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
