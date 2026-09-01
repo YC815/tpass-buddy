@@ -1,20 +1,68 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
-import { Badge, Card } from "@/components/ui/primitives";
-import type { SeniorGroup } from "@/lib/pairs";
+import { Check, Search, X } from "lucide-react";
+import { Badge, Card, cn } from "@/components/ui/primitives";
+import type { PublicPerson, SeniorGroup } from "@/lib/pairs";
+import { pickKey, useLeaveList } from "@/lib/leave-list";
+import { LeaveListPanel } from "@/components/LeaveListPanel";
 
 // 總表的搜尋 + 卡片牆。資料只有 90 個名字，全部丟給瀏覽器即時過濾就夠，
 // 不需要 debounce、不需要往返伺服器。
 //
 // 收到的是 SeniorGroup（PublicPerson，沒有 email 欄位）——傳給 client component
 // 的東西會完整出現在 HTML 的 RSC payload 裡，所以信箱不能走到這一層。
+//
+// 每個名字都是一個勾選鈕：活動當天把請假者的名字打進搜尋，卡片留下來，
+// 勾對方（學長姐或新生都行），名字進到上方的早退名單（見 lib/leave-list.ts）。
 
 const norm = (s: string) => s.trim().toLowerCase();
 
+function PersonToggle({
+  person,
+  on,
+  hit,
+  big,
+  onToggle,
+}: {
+  person: PublicPerson;
+  on: boolean;
+  hit: boolean;
+  big?: boolean;
+  onToggle: (p: PublicPerson) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={on}
+      onClick={() => onToggle(person)}
+      className={cn(
+        "inline-flex min-w-0 items-center gap-2 rounded-lg border-2 px-1.5 py-0.5 text-left transition-colors",
+        on ? "border-foreground bg-tone-green-badge" : "border-transparent hover:bg-muted",
+        big ? "text-xl font-extrabold tracking-tight" : "font-semibold",
+      )}
+    >
+      <span
+        aria-hidden
+        className={cn(
+          "grid size-4 shrink-0 place-items-center rounded-sm border-2 border-foreground",
+          on ? "bg-foreground text-card" : "bg-card",
+        )}
+      >
+        {on && <Check className="size-3" strokeWidth={3} />}
+      </span>
+      <span className={cn("truncate", hit && "rounded-md bg-tone-orange-badge px-1")}>
+        {person.name}
+      </span>
+    </button>
+  );
+}
+
 export function RosterSearch({ groups }: { groups: SeniorGroup[] }) {
   const [query, setQuery] = useState("");
+  const { picks, toggle, clear } = useLeaveList();
+  const picked = useMemo(() => new Set(picks.map(pickKey)), [picks]);
 
   const matched = useMemo(() => {
     const q = norm(query);
@@ -56,6 +104,8 @@ export function RosterSearch({ groups }: { groups: SeniorGroup[] }) {
         )}
       </div>
 
+      <LeaveListPanel picks={picks} onRemove={toggle} onClear={clear} />
+
       {query.trim() !== "" && (
         <p className="font-mono text-xs text-muted-foreground">
           {matched.length === 0
@@ -68,30 +118,27 @@ export function RosterSearch({ groups }: { groups: SeniorGroup[] }) {
         {matched.map((group, i) => (
           <Card key={i} className="flex flex-col gap-3">
             <div className="flex items-center justify-between gap-2 border-b-2 border-foreground pb-2">
-              <span
-                className={
-                  hit(group.senior.name)
-                    ? "rounded-md bg-tone-orange-badge px-1 text-xl font-extrabold tracking-tight"
-                    : "text-xl font-extrabold tracking-tight"
-                }
-              >
-                {group.senior.name}
-              </span>
-              <Badge className="bg-tone-blue-badge">{group.senior.grade}</Badge>
+              <PersonToggle
+                person={group.senior}
+                on={picked.has(pickKey(group.senior))}
+                hit={hit(group.senior.name)}
+                onToggle={toggle}
+                big
+              />
+              <Badge className="shrink-0 bg-tone-blue-badge">{group.senior.grade}</Badge>
             </div>
-            <ul className="flex flex-col gap-1.5">
+            <ul className="flex flex-col gap-1">
               {group.juniors.map((junior, j) => (
-                <li key={j} className="flex items-center gap-2 font-semibold">
+                <li key={j} className="flex items-center gap-1">
                   <span aria-hidden className="text-muted-foreground">
                     →
                   </span>
-                  <span
-                    className={
-                      hit(junior.name) ? "rounded-md bg-tone-orange-badge px-1" : undefined
-                    }
-                  >
-                    {junior.name}
-                  </span>
+                  <PersonToggle
+                    person={junior}
+                    on={picked.has(pickKey(junior))}
+                    hit={hit(junior.name)}
+                    onToggle={toggle}
+                  />
                 </li>
               ))}
             </ul>
